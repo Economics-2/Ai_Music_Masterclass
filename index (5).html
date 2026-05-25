@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Know Your Bangladesh - MH Academy</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Hind Siliguri', sans-serif;
+            overscroll-behavior: none; /* Prevent pull-to-refresh on mobile */
+            user-select: none; 
+            -webkit-user-select: none;
+        }
+
+        /* Map Grid Layout to mimic Bangladesh Geography roughly */
+        .map-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(4, 1fr);
+            gap: 8px;
+            aspect-ratio: 3/4;
+            max-width: 400px;
+            margin: 0 auto;
+            background-image: url('https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Bangladesh_divisions_blank.svg/800px-Bangladesh_divisions_blank.svg.png'); /* Fallback/Overlay feel */
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+
+        /* Division Zones */
+        .drop-zone {
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-align: center;
+            transition: all 0.3s;
+            position: relative;
+        }
+        
+        .drop-zone.highlight {
+            background: rgba(20, 184, 166, 0.4); /* Teal highlight */
+            border-color: #14b8a6;
+            transform: scale(1.05);
+        }
+
+        /* Positioning Divisions roughly geographically */
+        /* Rangpur (Top Left) */
+        .zone-rangpur { grid-column: 1 / 2; grid-row: 1 / 2; }
+        /* Mymensingh (Top Middle) */
+        .zone-mymensingh { grid-column: 2 / 3; grid-row: 1 / 2; margin-top: 20px;}
+        /* Sylhet (Top Right) */
+        .zone-sylhet { grid-column: 3 / 4; grid-row: 1 / 2; margin-top: 40px;}
+        /* Rajshahi (Mid Left) */
+        .zone-rajshahi { grid-column: 1 / 2; grid-row: 2 / 3; }
+        /* Dhaka (Center) */
+        .zone-dhaka { grid-column: 2 / 3; grid-row: 2 / 3; border-color: rgba(255,215,0, 0.5); }
+        /* Khulna (Bottom Left) */
+        .zone-khulna { grid-column: 1 / 2; grid-row: 3 / 5; }
+        /* Barisal (Bottom Mid) */
+        .zone-barisal { grid-column: 2 / 3; grid-row: 3 / 4; margin-top: 30px;}
+        /* Chittagong (Right Full) */
+        .zone-chittagong { grid-column: 3 / 4; grid-row: 2 / 5; }
+
+        /* Draggable Item */
+        .draggable {
+            touch-action: none; /* Crucial for mobile drag */
+            cursor: grab;
+            transition: transform 0.1s;
+            z-index: 50;
+        }
+        .draggable:active {
+            cursor: grabbing;
+            transform: scale(1.1);
+        }
+
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col" oncontextmenu="return false;">
+
+    <header class="bg-gray-800 p-3 shadow-lg z-10">
+        <div class="flex justify-between items-center max-w-lg mx-auto">
+            <div>
+                <h1 class="text-xl font-bold text-teal-400">ম্যাপ মাস্টার</h1>
+                <p class="text-xs text-gray-400">জেলা চিনে নাও</p>
+            </div>
+            <div class="text-right">
+                <div class="text-xs text-gray-400">স্কোর</div>
+                <div id="score-board" class="text-2xl font-bold text-yellow-400">0</div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow flex flex-col items-center justify-start p-2 overflow-hidden relative">
+        
+        <div class="w-full max-w-md h-24 flex items-center justify-center bg-gray-800 rounded-lg mb-4 shadow-inner relative" id="question-area">
+            <p class="absolute top-1 left-2 text-xs text-gray-500">নিচের জেলাটি টেনে সঠিক বিভাগে বসাও:</p>
+            
+            <div id="active-district" 
+                 class="draggable bg-teal-500 hover:bg-teal-600 text-white px-6 py-3 rounded-full shadow-lg font-bold text-lg select-none transform translate-x-0 translate-y-0"
+                 draggable="true">
+                 লোড হচ্ছে...
+            </div>
+        </div>
+
+        <div id="feedback" class="h-6 text-sm font-bold text-center mb-2 transition-opacity opacity-0">সঠিক উত্তর!</div>
+
+        <div class="map-grid w-full h-[450px] md:h-[500px] rounded-xl relative">
+            <div class="drop-zone zone-rangpur" data-division="rangpur">রংপুর</div>
+            <div class="drop-zone zone-mymensingh" data-division="mymensingh">ময়মনসিংহ</div>
+            <div class="drop-zone zone-sylhet" data-division="sylhet">সিলেট</div>
+            <div class="drop-zone zone-rajshahi" data-division="rajshahi">রাজশাহী</div>
+            <div class="drop-zone zone-dhaka" data-division="dhaka">ঢাকা</div>
+            <div class="drop-zone zone-chittagong" data-division="chittagong">চট্টগ্রাম</div>
+            <div class="drop-zone zone-khulna" data-division="khulna">খুলনা</div>
+            <div class="drop-zone zone-barisal" data-division="barisal">বরিশাল</div>
+        </div>
+
+    </main>
+
+    <footer class="bg-gray-900 border-t border-gray-800 p-4 text-center z-10">
+        <p class="text-teal-600 text-xs font-bold uppercase tracking-widest">Developed By</p>
+        <h3 class="text-sm text-white font-bold">মোঃ মঞ্জুরুল হক</h3>
+        <p class="text-gray-500 text-[10px]">প্রভাষক (অর্থনীতি), জিয়াউদ্দিন স্কুল এন্ড কলেজ, কিশোরগঞ্জ</p>
+    </footer>
+
+    <script>
+        // --- 1. Game Data (District to Division Mapping) ---
+        const gameData = [
+    // ঢাকা বিভাগ (Dhaka Division) - ১৩টি জেলা
+    { name: 'ঢাকা', div: 'dhaka' },
+    { name: 'গাজীপুর', div: 'dhaka' },
+    { name: 'কিশোরগঞ্জ', div: 'dhaka' }, // Special focus
+    { name: 'মানিকগঞ্জ', div: 'dhaka' },
+    { name: 'মুন্সীগঞ্জ', div: 'dhaka' },
+    { name: 'নারায়ণগঞ্জ', div: 'dhaka' },
+    { name: 'নরসিংদী', div: 'dhaka' },
+    { name: 'টাঙ্গাইল', div: 'dhaka' },
+    { name: 'ফরিদপুর', div: 'dhaka' },
+    { name: 'গোপালগঞ্জ', div: 'dhaka' },
+    { name: 'মাদারীপুর', div: 'dhaka' },
+    { name: 'রাজবাড়ী', div: 'dhaka' },
+    { name: 'শরীয়তপুর', div: 'dhaka' },
+
+    // চট্টগ্রাম বিভাগ (Chittagong Division) - ১১টি জেলা
+    { name: 'চট্টগ্রাম', div: 'chittagong' },
+    { name: 'কক্সবাজার', div: 'chittagong' },
+    { name: 'রাঙামাটি', div: 'chittagong' },
+    { name: 'বান্দরবান', div: 'chittagong' },
+    { name: 'খাগড়াছড়ি', div: 'chittagong' },
+    { name: 'ফেনী', div: 'chittagong' },
+    { name: 'নোয়াখালী', div: 'chittagong' },
+    { name: 'লক্ষ্মীপুর', div: 'chittagong' },
+    { name: 'কুমিল্লা', div: 'chittagong' },
+    { name: 'ব্রাহ্মণবাড়িয়া', div: 'chittagong' },
+    { name: 'চাঁদপুর', div: 'chittagong' },
+
+    // রাজশাহী বিভাগ (Rajshahi Division) - ৮টি জেলা
+    { name: 'রাজশাহী', div: 'rajshahi' },
+    { name: 'সিরাজগঞ্জ', div: 'rajshahi' },
+    { name: 'পাবনা', div: 'rajshahi' },
+    { name: 'বগুড়া', div: 'rajshahi' },
+    { name: 'চাঁপাইনবাবগঞ্জ', div: 'rajshahi' },
+    { name: 'নওগাঁ', div: 'rajshahi' },
+    { name: 'নাটোর', div: 'rajshahi' },
+    { name: 'জয়পুরহাট', div: 'rajshahi' },
+
+    // রংপুর বিভাগ (Rangpur Division) - ৮টি জেলা
+    { name: 'রংপুর', div: 'rangpur' },
+    { name: 'দিনাজপুর', div: 'rangpur' },
+    { name: 'কুড়িগ্রাম', div: 'rangpur' },
+    { name: 'গাইবান্ধা', div: 'rangpur' },
+    { name: 'নীলফামারী', div: 'rangpur' },
+    { name: 'পঞ্চগড়', div: 'rangpur' },
+    { name: 'ঠাকুরগাঁও', div: 'rangpur' },
+    { name: 'লালমনিরহাট', div: 'rangpur' },
+
+    // খুলনা বিভাগ (Khulna Division) - ১০টি জেলা
+    { name: 'খুলনা', div: 'khulna' },
+    { name: 'বাগেরহাট', div: 'khulna' },
+    { name: 'চুয়াডাঙ্গা', div: 'khulna' },
+    { name: 'যশোর', div: 'khulna' },
+    { name: 'ঝিনাইদহ', div: 'khulna' },
+    { name: 'কুষ্টিয়া', div: 'khulna' },
+    { name: 'মাগুরা', div: 'khulna' },
+    { name: 'মেহেরপুর', div: 'khulna' },
+    { name: 'নড়াইল', div: 'khulna' },
+    { name: 'সাতক্ষীরা', div: 'khulna' },
+
+    // বরিশাল বিভাগ (Barisal Division) - ৬টি জেলা
+    { name: 'বরিশাল', div: 'barisal' },
+    { name: 'বরগুনা', div: 'barisal' },
+    { name: 'ভোলা', div: 'barisal' },
+    { name: 'ঝালকাঠি', div: 'barisal' },
+    { name: 'পটুয়াখালী', div: 'barisal' },
+    { name: 'পিরোজপুর', div: 'barisal' },
+
+    // সিলেট বিভাগ (Sylhet Division) - ৪টি জেলা
+    { name: 'সিলেট', div: 'sylhet' },
+    { name: 'মৌলভীবাজার', div: 'sylhet' },
+    { name: 'হবিগঞ্জ', div: 'sylhet' },
+    { name: 'সুনামগঞ্জ', div: 'sylhet' },
+
+    // ময়মনসিংহ বিভাগ (Mymensingh Division) - ৪টি জেলা
+    { name: 'ময়মনসিংহ', div: 'mymensingh' },
+    { name: 'জামালপুর', div: 'mymensingh' },
+    { name: 'নেত্রকোণা', div: 'mymensingh' },
+    { name: 'শেরপুর', div: 'mymensingh' }
+];
+        let score = 0;
+        let currentDistrict = null;
+        let isDragging = false;
+        
+        // Element References
+        const draggableEl = document.getElementById('active-district');
+        const dropZones = document.querySelectorAll('.drop-zone');
+        const scoreEl = document.getElementById('score-board');
+        const feedbackEl = document.getElementById('feedback');
+
+        // --- 2. Game Functions ---
+
+        function loadNewDistrict() {
+            // Reset position
+            draggableEl.style.transform = 'translate(0px, 0px)';
+            draggableEl.style.position = 'relative';
+            draggableEl.style.left = 'auto';
+            draggableEl.style.top = 'auto';
+            
+            // Randomly select
+            const randomIndex = Math.floor(Math.random() * gameData.length);
+            currentDistrict = gameData[randomIndex];
+            draggableEl.innerText = currentDistrict.name;
+            
+            // Reset classes
+            draggableEl.classList.remove('bg-green-500', 'bg-red-500');
+            draggableEl.classList.add('bg-teal-500');
+        }
+
+        function updateScore(points) {
+            score += points;
+            scoreEl.innerText = score;
+            // Animation effect
+            scoreEl.classList.add('scale-125');
+            setTimeout(() => scoreEl.classList.remove('scale-125'), 200);
+        }
+
+        function showFeedback(msg, type) {
+            feedbackEl.innerText = msg;
+            feedbackEl.className = `h-6 text-sm font-bold text-center mb-2 transition-opacity opacity-100 ${type === 'success' ? 'text-green-400' : 'text-red-400'}`;
+            setTimeout(() => {
+                feedbackEl.classList.remove('opacity-100');
+                feedbackEl.classList.add('opacity-0');
+            }, 1500);
+        }
+
+        // --- 3. Drag & Touch Logic (Complex part for Mobile) ---
+
+        // Variables for calculation
+        let startX, startY, initialLeft, initialTop;
+
+        // Mouse Events
+        draggableEl.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', currentDistrict.div);
+            setTimeout(() => e.target.classList.add('opacity-50'), 0);
+        });
+
+        draggableEl.addEventListener('dragend', (e) => {
+            e.target.classList.remove('opacity-50');
+        });
+
+        // Touch Events (For Mobile)
+        draggableEl.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Prevent scrolling
+            const touch = e.touches[0];
+            const rect = draggableEl.getBoundingClientRect();
+            
+            // Calculate offset
+            startX = touch.clientX - rect.left;
+            startY = touch.clientY - rect.top;
+            
+            // Prepare for moving
+            draggableEl.style.position = 'fixed';
+            draggableEl.style.width = rect.width + 'px';
+            draggableEl.style.zIndex = '100';
+            
+            moveAt(touch.clientX, touch.clientY);
+        }, { passive: false });
+
+        draggableEl.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            moveAt(touch.clientX, touch.clientY);
+            
+            // Highlight zones on hover
+            const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+            if (!elementBelow) return;
+            
+            const droppableBelow = elementBelow.closest('.drop-zone');
+            
+            dropZones.forEach(z => z.classList.remove('highlight'));
+            if (droppableBelow) {
+                droppableBelow.classList.add('highlight');
+            }
+
+        }, { passive: false });
+
+        draggableEl.addEventListener('touchend', (e) => {
+            const touch = e.changedTouches[0];
+            draggableEl.style.display = 'none'; // Hide briefly to find element below
+            let elemBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+            draggableEl.style.display = 'flex'; // Show again
+            
+            if (!elemBelow) {
+                resetPosition();
+                return;
+            }
+
+            let dropZone = elemBelow.closest('.drop-zone');
+
+            if (dropZone) {
+                handleDrop(dropZone.dataset.division);
+                dropZone.classList.remove('highlight');
+            } else {
+                resetPosition();
+            }
+        });
+
+        function moveAt(pageX, pageY) {
+            draggableEl.style.left = pageX - startX + 'px';
+            draggableEl.style.top = pageY - startY + 'px';
+        }
+
+        function resetPosition() {
+            draggableEl.style.position = 'relative';
+            draggableEl.style.left = 'auto';
+            draggableEl.style.top = 'auto';
+            draggableEl.style.zIndex = '50';
+        }
+
+        // --- 4. Drop Logic (For Desktop) ---
+
+        dropZones.forEach(zone => {
+            zone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                zone.classList.add('highlight');
+            });
+
+            zone.addEventListener('dragleave', () => {
+                zone.classList.remove('highlight');
+            });
+
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('highlight');
+                const droppedDiv = e.dataTransfer.getData('text/plain');
+                handleDrop(zone.dataset.division);
+            });
+        });
+
+        function handleDrop(targetDivision) {
+            if (targetDivision === currentDistrict.div) {
+                // Success
+                draggableEl.classList.remove('bg-teal-500');
+                draggableEl.classList.add('bg-green-500');
+                showFeedback('চমৎকার! সঠিক উত্তর।', 'success');
+                updateScore(10);
+                
+                // Reset for next round after delay
+                setTimeout(() => {
+                    resetPosition();
+                    loadNewDistrict();
+                }, 1000);
+            } else {
+                // Failure
+                draggableEl.classList.remove('bg-teal-500');
+                draggableEl.classList.add('bg-red-500');
+                showFeedback('ভুল হয়েছে! আবার চেষ্টা কর।', 'error');
+                updateScore(-5);
+                
+                // Shake animation
+                draggableEl.style.transform = "translateX(10px)";
+                setTimeout(() => {
+                    draggableEl.style.transform = "translateX(-10px)";
+                    setTimeout(() => {
+                        draggableEl.style.transform = "translateX(0px)";
+                        if(draggableEl.style.position === 'fixed') resetPosition(); // If mobile, reset immediately
+                    }, 100);
+                }, 100);
+                
+                setTimeout(() => {
+                    draggableEl.classList.remove('bg-red-500');
+                    draggableEl.classList.add('bg-teal-500');
+                }, 1000);
+            }
+        }
+
+        // --- 5. Init & Protection ---
+        
+        loadNewDistrict();
+
+        // Security
+        document.onkeydown = function(e) {
+            if(e.keyCode == 123) return false;
+            if(e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) return false;
+            if(e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) return false;
+            if(e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) return false;
+            if(e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) return false;
+        }
+
+        console.log("%c MH Academy - Security Active ", "background: #222; color: #bada55; font-size: 20px");
+
+    </script>
+</body>
+</html>
